@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [ "main", "master" ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ "main", "master" ]
 
@@ -54,3 +56,73 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: cmake --build _build --config Release
+
+  release-packages:
+    name: Build packages
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cpack_generator: DEB;RPM
+            extra_packages: rpm
+          - os: windows-latest
+            cpack_generator: WIX
+            extra_packages: wixtoolset
+          - os: macos-latest
+            cpack_generator: DragNDrop
+            extra_packages: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Install WiX Toolset (Windows)
+        if: runner.os == 'Windows'
+        run: choco install wixtoolset
+
+      - name: Configure CMake
+        run: cmake -S . -B _build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build _build --config Release
+
+      - name: Create packages with CPack
+        shell: bash
+        run: |
+          cd _build
+          IFS=';' read -ra GENERATORS <<< "${{ matrix.cpack_generator }}"
+          for gen in "${GENERATORS[@]}"; do
+            echo "=== Generating $gen ==="
+            cpack -G "$gen"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: _build/*.{deb,rpm,dmg,msi}
+
+  create-release:
+    needs: release-packages
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.{deb,rpm,dmg,msi}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
