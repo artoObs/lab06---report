@@ -1,239 +1,198 @@
-[![Build](https://github.com/artoObs/lab04---report/actions/workflows/build.yml/badge.svg)](https://github.com/artoObs/lab04---report/actions/workflows/build.yml)
-
 # Laboratory work IV
 
-Данная лабораторная работа посвящена изучению систем непрерывной интеграции на примере сервиса Travis CI
+# Homework
 
-```bash
-$ open https://travis-ci.org
+В корневой CMakeLists.txt добавлены эти строчки перед project:
+
+```cmake
+set(PRINT_VERSION_MAJOR 0)
+set(PRINT_VERSION_MINOR 1)
+set(PRINT_VERSION_PATCH 0)
+set(PRINT_VERSION_TWEAK 0)
+set(PRINT_VERSION ${PRINT_VERSION_MAJOR}.${PRINT_VERSION_MINOR}.${PRINT_VERSION_PATCH}.${PRINT_VERSION_TWEAK})
+set(PRINT_VERSION_STRING "v${PRINT_VERSION}")
 ```
-Так как работа переведена из Travis CI в GitHub Actions, то буду писать сначала команду/действие по условию, а потом на что меняется.
 
-## Tasks
-
-1. Авторизоваться на сервисе Travis CI с использованием GitHub аккаунта
-
-      Не требуется
-
-2. Создать публичный репозиторий с названием lab04 на сервисе GitHub
-
-      Создан
-
-3. Ознакомиться со ссылками учебного материала
-
-      Ознакомлен
-
-4. Включить интеграцию сервиса Travis CI с созданным репозиторием
-
-      Не требуется, будет создан файл в процессе
-
-5. Получить токен для Travis CLI с правами repo и user
-
-      Токен получен, но с правами repo и workflow
-
-6. Получить фрагмент вставки значка сервиса Travis CI в формате Markdown
-
-      Копируется через интерфейс вкладки Actions
-
-7. Выполнить инструкцию учебного материала
-
-      Выполнено
-
-8. Составить отчет и отправить ссылку личным сообщением в Slack
-
-## Tutorial
-
-```bash
-$ export GITHUB_USERNAME=<имя_пользователя>
-$ export GITHUB_TOKEN=<полученный_токен>
-$ cd ${GITHUB_USERNAME}/workspace
-$ pushd .
-$ source scripts/activate
+И в конец:
+```cmake
+include(CPackConfig.cmake)
 ```
-Выполнено
 
 ```bash
-$ \curl -sSL https://get.rvm.io | bash -s -- --ignore-dotfiles
+$ touch CPackConfig.cmake
+$ nano CPackConfig.cmake
 ```
-Установлен RVM
 
-```bash
-$ echo "source $HOME/.rvm/scripts/rvm" >> scripts/activate
+В CPackConfig.cmake вставлено:
+```cmake
+include(InstallRequiredSystemLibraries)
+
+set(CPACK_PACKAGE_CONTACT ${GITHUB_EMAIL})
+set(CPACK_PACKAGE_VERSION_MAJOR ${PRINT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PRINT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PRINT_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION_TWEAK ${PRINT_VERSION_TWEAK})
+set(CPACK_PACKAGE_VERSION ${PRINT_VERSION})
+
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/DESCRIPTION")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Solver application for mathematical problems")
+
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+set(CPACK_DEBIAN_PACKAGE_NAME "libsolver-dev")
+set(CPACK_DEBIAN_PACKAGE_PREDEPENDS "cmake >= 3.0")
+
+set(CPACK_RPM_PACKAGE_NAME "solver-devel")
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+set(CPACK_RPM_PACKAGE_GROUP "Development/Tools")
+
+include(CPack)
 ```
-Дописана подгрузка RVM в файл scripts/activate
 
-```bash
-$ . scripts/activate
-```
-Перезапущен scripts/activate
-
-```bash
-$ type -p curl >/dev/null || sudo apt install curl -y
-$ curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-$ sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-$ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-$ sudo apt update
-$ sudo apt install gh -y
-```
-Установка GitHub Actions
-
-```bash
-echo "${GITHUB_TOKEN}" | gh auth login --with-token
-```
-Авторизация через токен
-
-```bash
-$ git clone https://github.com/${GITHUB_USERNAME}/lab03 projects/lab04
-$ cd projects/lab04
-$ git remote remove origin
-$ git remote add origin https://github.com/${GITHUB_USERNAME}/lab04
-```
-Клонирование и настройка репозитория
-
-```bash
-$ mkdir -p .github/workflows
-$ cat > .github/workflows/build.yml <<'EOF'
-name: Build
-
-on:
-  push:
-    branches: [ "master", "main" ]
-  pull_request:
-    branches: [ "master", "main" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Setup CMake
-      uses: jwlawson/actions-setup-cmake@v1.14
-      with:
-        cmake-version: '3.16.x'
-
-    - name: Configure CMake
-      run: cmake -H. -B_build -DCMAKE_INSTALL_PREFIX=_install
-
-    - name: Build
-      run: cmake --build _build
-
-    - name: Install
-      run: cmake --build _build --target install
-EOF
-```
-Тут происходит создание конфигурационного файла GitHub Actions и оно кардинально отличается от Travis
-
-```bash
-$ BADGE="[![Build](https://github.com/${GITHUB_USERNAME}/lab04/actions/workflows/build.yml/badge.svg)](https://github.com/${GITHUB_USERNAME}/lab04/actions/workflows/build.yml)"
-$ echo "${BADGE}" | cat - README.md > temp && mv temp README.md
-```
-Формирует строку Markdown со значком и сохраняет в README.md
-
-```bash
-$ git add .github/workflows/build.yml
-$ git add README.md
-$ git commit -m "added GitHub Actions"
-$ git push origin master
-```
-Отправка коммитов
-
-```bash
-$ gh workflow list
-```
-Показывает файлы .yml в репозитории (travis repos)
-
-```bash
-$ gh run watch $(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
-```
-В реальном времени показывает логи выполнения запуска (travis whatsup)
-
-```bash
-$ gh run list --branch master
-```
-Фильтрует список запусков только по ветке master (travis branches)
-
-```bash
-$ gh run list
-```
-Выводит список последних запусков (travis history)
-
-```bash
-$ gh run view $(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
-```
-Получает ID самого последнего запуска и показывает подробную информацию о нём (travis show)
-
-## Homework
-
-Продолжаю из папки, где находились все файлы прошлой лабораторной.
-
-```bash
-$ git init
-$ git add .
-$ git commit -m "Initial commit"
-$ git remote add origin https://github.com/artoObs/lab04---report.git
-$ git push -u origin main
-```
-Отправил все файлы, что уже были в репозиторий.
-
-Дальше через GitHub изменил build.yml:
-
-```bash
+Дальше изменяем build.yml:
+```yaml
 name: CI
 
 on:
   push:
     branches: [ "main", "master" ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ "main", "master" ]
 
 jobs:
   build:
-    name: ${{ matrix.compiler }} on Linux
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        compiler: [gcc, clang]
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+
+          - os: ubuntu-latest
+            compiler: clang
+            cc: clang
+            cxx: clang++
+
+          - os: windows-latest
+            compiler: msvc
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v1.14
-        with:
-          cmake-version: '3.16.x'
-
-      - name: Install dependencies (if needed)
+      - name: Install Linux compilers
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential clang
 
-      - name: Configure CMake
-        run: cmake -H. -B_build -DCMAKE_INSTALL_PREFIX=_install -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+      - name: Setup MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Build
+      - name: Configure CMake (Unix)
+        if: runner.os != 'Windows'
+        run: cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=_install -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=_install
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
         run: cmake --build _build
 
-      - name: Install
-        run: cmake --build _build --target install
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build _build --config Release
+
+  release-packages:
+    name: Build packages
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cpack_generator: DEB;RPM
+            extra_packages: rpm
+          - os: windows-latest
+            cpack_generator: WIX
+            extra_packages: wixtoolset
+          - os: macos-latest
+            cpack_generator: DragNDrop
+            extra_packages: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Install WiX Toolset (Windows)
+        if: runner.os == 'Windows'
+        run: choco install wixtoolset
+
+      - name: Configure CMake
+        run: cmake -S . -B _build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build _build --config Release
+
+      - name: Create packages with CPack
+        shell: bash
+        run: |
+          cd _build
+          IFS=';' read -ra GENERATORS <<< "${{ matrix.cpack_generator }}"
+          for gen in "${GENERATORS[@]}"; do
+            echo "=== Generating $gen ==="
+            cpack -G "$gen"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: _build/*.{deb,rpm,dmg,msi}
+
+  create-release:
+    needs: release-packages
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.{deb,rpm,dmg,msi}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
-Дальше требуется сборка всего файла, поэтому был добавлен новый CMakeLists.txt:
+
+Созданы файлы для корректной работы
+```bash
+$ touch DESCRIPTION LICENSE ChangeLog.md
+```
 
 ```bash
-$ cat > CMakeLists.txt <<'EOF'
-cmake_minimum_required(VERSION 3.4)
-project(FormatterProject)
-
-add_subdirectory(formatter_lib)
-add_subdirectory(formatter_ex_lib)
-add_subdirectory(solver_lib)
-add_subdirectory(hello_world)
-add_subdirectory(solver)
-EOF
-
-git add CMakeLists.txt
-git commit -m "add root CMakeLists.txt"
-git push origin main
+$ git add .github/workflows/build.yml CMakeLists.txt CPackConfig.cmake DESCRIPTION
+$ git commit -m "Add CPack"
+$ git push origin main
+$ git tag v1.0.0
+$ git push origin --tags
 ```
-После этого у меня возникали ошибки касательно CMakeLists.txt из прошлой лабораторной (связанные с субдиректориями и файлами .cpp). После починки всё заработало, значок загорелся зелёным.
+
+Файл собрался, всё работает.
