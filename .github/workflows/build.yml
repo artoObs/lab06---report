@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: [ "main", "master" ]
-    tags:
-      - 'v*'
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main", "master" ]
 
@@ -12,7 +11,6 @@ jobs:
   build:
     name: ${{ matrix.os }} / ${{ matrix.compiler }}
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         include:
@@ -20,64 +18,50 @@ jobs:
             compiler: gcc
             cc: gcc
             cxx: g++
-
           - os: ubuntu-latest
             compiler: clang
             cc: clang
             cxx: clang++
-
           - os: windows-latest
             compiler: msvc
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Install Linux compilers
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential clang
-
       - name: Setup MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
-
       - name: Configure CMake (Unix)
         if: runner.os != 'Windows'
         run: cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=_install -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
-
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
         run: cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=_install
-
       - name: Build (Unix)
         if: runner.os != 'Windows'
         run: cmake --build _build
-
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: cmake --build _build --config Release
 
   release-packages:
-    name: Build packages
-    if: startsWith(github.ref, 'refs/tags/')
+    name: Build packages on ${{ matrix.os }}
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            cpack_generator: DEB;RPM
-            extra_packages: rpm
+            cpack_generator: "DEB;RPM"
           - os: windows-latest
-            cpack_generator: WIX
-            extra_packages: wixtoolset
+            cpack_generator: "WIX"
           - os: macos-latest
-            cpack_generator: DragNDrop
-            extra_packages: ""
-
+            cpack_generator: "DragNDrop"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Linux packaging tools
+      - name: Install Linux packaging tools (rpm)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
 
@@ -109,20 +93,23 @@ jobs:
 
   create-release:
     needs: release-packages
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
-      - name: Download all package artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
       - name: Create Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*.{deb,rpm,dmg,msi}
+          files: |
+            artifacts/packages-ubuntu-latest/*.deb
+            artifacts/packages-ubuntu-latest/*.rpm
+            artifacts/packages-macos-latest/*.dmg
+            artifacts/packages-windows-latest/*.msi
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
